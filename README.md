@@ -1,2 +1,2 @@
-# ERIA Project - Context manager
-Manager for general context events/values
+# ERIA Project - Contexts manager
+Manager for general contexts events/values
