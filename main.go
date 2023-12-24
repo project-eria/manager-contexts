@@ -1,6 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
+
+	"github.com/gookit/goutil/fsutil"
 	"github.com/project-eria/go-wot/thing"
 
 	eria "github.com/project-eria/eria-core"
@@ -11,22 +15,52 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var config = struct {
-	Contexts []string `yaml:"contexts" required:"true"`
-}{}
+var config = struct{}{}
+
+type StateData struct {
+	Contexts []string `json:"contexts"`
+}
+
+var (
+	_dataPath  *string
+	_stateData StateData
+)
 
 func main() {
 	defer func() {
 		zlog.Info().Msg("[main] Stopped")
 	}()
+	// (Config flags should be placed before Init)
+	_dataPath = flag.String("data-path", "data.json", "state data file path")
 	eria.Init("ERIA Contexts Manager")
 	// Loading config
 	eria.LoadConfig(&config)
+	if fsutil.FileExists(*_dataPath) {
+		// Loading state data from json file
+		zlog.Info().Str("file", *_dataPath).Msg("[main] loading state data, from file")
+		jsonData := fsutil.ReadFile(*_dataPath)
+		err := json.Unmarshal([]byte(jsonData), &_stateData)
+		if err != nil {
+			zlog.Warn().Err(err).Msg("[main] Could not unmarshal json")
+		}
+	} else {
+		zlog.Info().Str("file", *_dataPath).Msg("[main] state data file not found, creating it")
+		_stateData.Contexts = []string{}
+	}
+
 	td := setThing()
 	eriaThing, _ := eria.Producer("").AddThing("", td)
 
 	setHandlers(eriaThing)
 	eria.Start("")
+}
+
+func saveStateData() {
+	jsonData, _ := json.Marshal(_stateData)
+	err := fsutil.WriteFile(*_dataPath, jsonData, 0644)
+	if err != nil {
+		zlog.Warn().Err(err).Msg("[main] Could not save state data in json file")
+	}
 }
 
 func setThing() *thing.Thing {
@@ -92,18 +126,18 @@ func setThing() *thing.Thing {
 
 func setHandlers(eriaThing producer.ExposedThing) {
 	eriaThing.SetPropertyReadHandler("actives", func(t producer.ExposedThing, name string, parameters map[string]interface{}) (interface{}, error) {
-		zlog.Trace().Str("property", "actives").Interface("value", config.Contexts).Msg("[main:propertyReadHandler] Value get")
-		return config.Contexts, nil
+		zlog.Trace().Str("property", "actives").Interface("value", _stateData.Contexts).Msg("[main:propertyReadHandler] Value get")
+		return _stateData.Contexts, nil
 	})
 
 	eriaThing.SetPropertyReadHandler("isActive", func(t producer.ExposedThing, name string, parameters map[string]interface{}) (interface{}, error) {
 		// The presence and the value type of the `context` options has been checked by Protocol Binding
-		return slices.Contains(config.Contexts, parameters["context"].(string)), nil
+		return slices.Contains(_stateData.Contexts, parameters["context"].(string)), nil
 	})
 
 	eriaThing.SetPropertyObserveHandler("isActive", func(t producer.ExposedThing, name string, parameters map[string]interface{}) (interface{}, error) {
 		// The presence and the value type of the `context` options has been checked by Protocol Binding
-		return slices.Contains(config.Contexts, parameters["context"].(string)), nil
+		return slices.Contains(_stateData.Contexts, parameters["context"].(string)), nil
 	})
 
 	eriaThing.SetObserverSelectorHandler("isActive", func(emitOptions map[string]interface{}, listenerOptions map[string]interface{}) bool {
@@ -112,11 +146,12 @@ func setHandlers(eriaThing producer.ExposedThing) {
 
 	eriaThing.SetActionHandler("setContext", func(value interface{}, parameters map[string]interface{}) (interface{}, error) {
 		context := value.(string)
-		i := slices.Index(config.Contexts, context)
+		i := slices.Index(_stateData.Contexts, context)
 		if i == -1 {
 			// Not in array yet
-			config.Contexts = append(config.Contexts, context)
-			eriaThing.EmitPropertyChange("actives", config.Contexts, map[string]interface{}{"context": context})
+			_stateData.Contexts = append(_stateData.Contexts, context)
+			saveStateData()
+			eriaThing.EmitPropertyChange("actives", _stateData.Contexts, map[string]interface{}{"context": context})
 			eriaThing.EmitPropertyChange("isActive", true, map[string]interface{}{"context": context})
 			return true, nil
 		}
@@ -125,11 +160,12 @@ func setHandlers(eriaThing producer.ExposedThing) {
 
 	eriaThing.SetActionHandler("unsetContext", func(value interface{}, parameters map[string]interface{}) (interface{}, error) {
 		context := value.(string)
-		i := slices.Index(config.Contexts, context)
+		i := slices.Index(_stateData.Contexts, context)
 		if i != -1 {
 			// In array
-			config.Contexts = slices.Delete(config.Contexts, i, i+1)
-			eriaThing.EmitPropertyChange("actives", config.Contexts, map[string]interface{}{"context": context})
+			_stateData.Contexts = slices.Delete(_stateData.Contexts, i, i+1)
+			saveStateData()
+			eriaThing.EmitPropertyChange("actives", _stateData.Contexts, map[string]interface{}{"context": context})
 			eriaThing.EmitPropertyChange("isActive", false, map[string]interface{}{"context": context})
 			return true, nil
 		}
