@@ -1,10 +1,10 @@
 module manager-context
 
-go 1.20
+go 1.21
 
 require (
 	github.com/gookit/goutil v0.6.14
-	github.com/project-eria/eria-core v1.7.0
+	github.com/project-eria/eria-core v1.9.0
 	github.com/project-eria/go-wot v1.5.0
 	github.com/rs/zerolog v1.29.0
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
@@ -13,7 +13,7 @@ require (
 require (
 	github.com/andybalholm/brotli v1.0.5 // indirect
 	github.com/fasthttp/websocket v1.5.2 // indirect
-	github.com/go-co-op/gocron v1.36.0 // indirect
+	github.com/go-co-op/gocron v1.37.0 // indirect
 	github.com/gofiber/fiber/v2 v2.43.0 // indirect
 	github.com/gofiber/websocket/v2 v2.1.5 // indirect
 	github.com/google/uuid v1.4.0 // indirect
