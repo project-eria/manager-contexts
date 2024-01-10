@@ -3,7 +3,10 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"strings"
+	"time"
 
+	"github.com/gookit/goutil/arrutil"
 	"github.com/gookit/goutil/fsutil"
 	"github.com/project-eria/go-wot/thing"
 
@@ -52,7 +55,45 @@ func main() {
 	eriaThing, _ := eria.Producer("").AddThing("", td)
 
 	setHandlers(eriaThing)
+
+	// Set week/day context
+	scheduler := eria.GetCronScheduler()
+	scheduler.Every(1).Day().At("00:00").
+		StartImmediately(). // Refresh the context immediately
+		Do(setDailyContexts, eriaThing)
 	eria.Start("")
+}
+
+func setDailyContexts(eriaThing producer.ExposedThing) {
+	now := time.Now().In(eria.Location())
+	day := strings.ToLower(now.Weekday().String())
+	// Add the day
+	newContexts := []string{day}
+	if day == "saturday" || day == "sunday" {
+		newContexts = append(newContexts, "weekend")
+	} else {
+		newContexts = append(newContexts, "weekday")
+	}
+
+	// Clean the context
+	// Get the actual context
+	oldContexts := arrutil.Intersects(_stateData.Contexts, []string{"weekday", "weekend", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, arrutil.StringEqualsComparer)
+
+	// Merge the new contexts
+	_stateData.Contexts = arrutil.Union(_stateData.Contexts, newContexts, arrutil.StringEqualsComparer)
+	saveStateData()
+
+	// Emit the change for removed contexts
+	// Excepts([]string{"a", "c"}, []string{"a", "b"},...) => []string{"c"}
+	for _, context := range arrutil.Excepts(oldContexts, newContexts, arrutil.StringEqualsComparer) {
+		eriaThing.EmitPropertyChange("isActive", false, map[string]interface{}{"context": context})
+	}
+	// Emit the change for added contexts
+	for _, context := range arrutil.Excepts(newContexts, oldContexts, arrutil.StringEqualsComparer) {
+		eriaThing.EmitPropertyChange("isActive", true, map[string]interface{}{"context": context})
+	}
+
+	eriaThing.EmitPropertyChange("actives", _stateData.Contexts, map[string]interface{}{})
 }
 
 func saveStateData() {

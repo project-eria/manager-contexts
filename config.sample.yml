@@ -1,13 +1,2 @@
 host: 127.0.0.1 # thing host (default to all IPs)
 port: 8888 # thing port (default 80)
-contexts:
-    <context reference>:
-        title: <Title string>
-        desc: <Description string>
-        type: <type of context: boolean>
-        value: <value>
-    holiday:
-        title: Holiday
-        desc: School holiday
-        type: boolean
-        value: true
