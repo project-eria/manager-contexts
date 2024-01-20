@@ -3,10 +3,9 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"strings"
+	"manager-context/lib"
 	"time"
 
-	"github.com/gookit/goutil/arrutil"
 	"github.com/gookit/goutil/fsutil"
 	"github.com/project-eria/go-wot/thing"
 
@@ -35,9 +34,7 @@ func main() {
 	}()
 	// (Config flags should be placed before Init)
 	_dataPath = flag.String("data-path", "data.json", "state data file path")
-	eria.Init("ERIA Contexts Manager")
-	// Loading config
-	eria.LoadConfig(&config)
+	eria.Init("ERIA Contexts Manager", &config)
 	if fsutil.FileExists(*_dataPath) {
 		// Loading state data from json file
 		zlog.Info().Str("file", *_dataPath).Msg("[main] loading state data, from file")
@@ -66,30 +63,18 @@ func main() {
 
 func setDailyContexts(eriaThing producer.ExposedThing) {
 	now := time.Now().In(eria.Location())
-	day := strings.ToLower(now.Weekday().String())
-	// Add the day
-	newContexts := []string{day}
-	if day == "saturday" || day == "sunday" {
-		newContexts = append(newContexts, "weekend")
-	} else {
-		newContexts = append(newContexts, "weekday")
-	}
 
-	// Clean the context
-	// Get the actual context
-	oldContexts := arrutil.Intersects(_stateData.Contexts, []string{"weekday", "weekend", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, arrutil.StringEqualsComparer)
-
-	// Merge the new contexts
-	_stateData.Contexts = arrutil.Union(_stateData.Contexts, newContexts, arrutil.StringEqualsComparer)
+	current, removed, added := lib.GetDailyContexts(now, _stateData.Contexts)
+	_stateData.Contexts = current
 	saveStateData()
 
 	// Emit the change for removed contexts
 	// Excepts([]string{"a", "c"}, []string{"a", "b"},...) => []string{"c"}
-	for _, context := range arrutil.Excepts(oldContexts, newContexts, arrutil.StringEqualsComparer) {
+	for _, context := range removed {
 		eriaThing.EmitPropertyChange("isActive", false, map[string]interface{}{"context": context})
 	}
 	// Emit the change for added contexts
-	for _, context := range arrutil.Excepts(newContexts, oldContexts, arrutil.StringEqualsComparer) {
+	for _, context := range added {
 		eriaThing.EmitPropertyChange("isActive", true, map[string]interface{}{"context": context})
 	}
 
@@ -113,53 +98,47 @@ func setThing() *thing.Thing {
 		[]string{},
 	)
 
-	activesData := dataSchema.NewArray([]string{}, 0, 0)
+	activesData, _ := dataSchema.NewArray()
 	activesProperty := interaction.NewProperty(
 		"actives",
 		"Actives Contexts",
 		"List of contexts that are currently actives",
-		true,
-		false,
-		true,
-		nil,
 		activesData,
+		interaction.PropertyReadOnly(true),
 	)
 	td.AddProperty(activesProperty)
 
-	isActiveData := dataSchema.NewBoolean(false)
+	isActiveData, _ := dataSchema.NewBoolean()
+	uriContext, _ := dataSchema.NewString()
 	isActiveProperty := interaction.NewProperty(
 		"isActive",
 		"Is context active",
 		"Tell if a specific context is active",
-		true,
-		false,
-		true,
-		map[string]dataSchema.Data{
-			"context": dataSchema.NewString("", 0, 0, ""),
-		},
 		isActiveData,
+		interaction.PropertyReadOnly(true),
+		interaction.PropertyUriVariable("context", uriContext),
 	)
 	td.AddProperty(isActiveProperty)
 
-	setContextInputData := dataSchema.NewString("", 0, 0, "")
-	setContextOutputData := dataSchema.NewBoolean(false)
+	setContextInputData, _ := dataSchema.NewString()
+	setContextOutputData, _ := dataSchema.NewBoolean()
 	setContext := interaction.NewAction(
 		"setContext",
 		"Set context",
 		"Set the context as active",
-		&setContextInputData,
-		&setContextOutputData,
+		interaction.ActionInput(&setContextInputData),
+		interaction.ActionOutput(&setContextOutputData),
 	)
 	td.AddAction(setContext)
 
-	unsetContextInputData := dataSchema.NewString("", 0, 0, "")
-	unsetContextOutputData := dataSchema.NewBoolean(false)
+	unsetContextInputData, _ := dataSchema.NewString()
+	unsetContextOutputData, _ := dataSchema.NewBoolean()
 	unsetContext := interaction.NewAction(
 		"unsetContext",
 		"Unset context",
 		"Set the context as inactive",
-		&unsetContextInputData,
-		&unsetContextOutputData,
+		interaction.ActionInput(&unsetContextInputData),
+		interaction.ActionOutput(&unsetContextOutputData),
 	)
 	td.AddAction(unsetContext)
 	return td
