@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"manager-context/lib"
+	"os"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
@@ -25,16 +26,23 @@ type StateData struct {
 }
 
 var (
-	_dataPath  *string
-	_stateData StateData
+	_dataPath        *string
+	_defaultDataPath = "data.json"
+	_stateData       StateData
 )
 
 func main() {
 	defer func() {
 		zlog.Info().Msg("[main] Stopped")
 	}()
+
 	// (Config flags should be placed before Init)
-	_dataPath = flag.String("data-path", "data.json", "state data file path")
+	envDataPath, ok := os.LookupEnv("ERIA_DATA_PATH")
+	if ok {
+		_defaultDataPath = envDataPath
+	}
+	_dataPath = flag.String("data-path", _defaultDataPath, "state data file path")
+
 	eria.Init("ERIA Contexts Manager", &config)
 	if fsutil.FileExists(*_dataPath) {
 		// Loading state data from json file
