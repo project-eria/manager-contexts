@@ -6,6 +6,7 @@ import (
 	"manager-context/lib"
 	"time"
 
+	"github.com/go-co-op/gocron/v2"
 	"github.com/gookit/goutil/fsutil"
 	"github.com/project-eria/go-wot/thing"
 
@@ -55,9 +56,20 @@ func main() {
 
 	// Set week/day context
 	scheduler := eria.GetCronScheduler()
-	scheduler.Every(1).Day().At("00:00").
-		StartImmediately(). // Refresh the context immediately
-		Do(setDailyContexts, eriaThing)
+	// Update daily contexts each morning at 0:00
+	scheduler.NewJob(
+		gocron.DailyJob(
+			1,
+			gocron.NewAtTimes(
+				gocron.NewAtTime(0, 0, 0),
+			),
+		),
+		gocron.NewTask(setDailyContexts, eriaThing),
+		gocron.WithTags("refresh", "main"),
+		gocron.WithStartAt(
+			gocron.WithStartImmediately(),
+		),
+	)
 	eria.Start("")
 }
 
