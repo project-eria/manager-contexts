@@ -26,3 +26,12 @@ func GetDailyContexts(now time.Time, currentContexts []string) ([]string, []stri
 	added := arrutil.Excepts(current, currentContexts, arrutil.StringEqualsComparer)
 	return current, removed, added
 }
+
+// SetChosen replaces the active configured contexts by the chosen ones, keeping
+// the other active contexts (daily ones, those set by setContext).
+func SetChosen(currentContexts []string, configured []string, chosen []string) ([]string, []string, []string) {
+	current := arrutil.Union(arrutil.Excepts(currentContexts, configured, arrutil.StringEqualsComparer), chosen, arrutil.StringEqualsComparer)
+	removed := arrutil.Excepts(currentContexts, current, arrutil.StringEqualsComparer)
+	added := arrutil.Excepts(current, currentContexts, arrutil.StringEqualsComparer)
+	return current, removed, added
+}

@@ -1,2 +1,8 @@
 host: 127.0.0.1 # thing host (default to all IPs)
-port: 8888 # thing port (default 80)
+port: 8888 # thing port (default 80)location: Europe/Paris
+# Contexts people choose (property "chosen"), in display order, with their names
+contexts:
+  - id: away
+    name: Absents
+  - id: guests
+    name: Invités

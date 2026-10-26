@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"manager-context/lib"
 	"os"
 	"time"
@@ -19,7 +20,15 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var config = struct{}{}
+// Context is a context people choose (a state of the house: away, guests…), with its name.
+type Context struct {
+	ID   string `yaml:"id" required:"true"`
+	Name string `yaml:"name"`
+}
+
+var config = struct {
+	Contexts []Context `yaml:"contexts,omitempty"` // contexts people choose, in display order
+}{}
 
 type StateData struct {
 	Contexts []string `json:"contexts"`
@@ -85,20 +94,41 @@ func setDailyContexts(eriaThing producer.ExposedThing) {
 	now := time.Now().In(eria.Location())
 
 	current, removed, added := lib.GetDailyContexts(now, _stateData.Contexts)
+	applyContexts(eriaThing, current, removed, added)
+	eriaThing.EmitPropertyChange("chosen", chosenContexts(), map[string]interface{}{})
+}
+
+// applyContexts saves the new active contexts and emits the changes ("chosen" is left to the caller).
+func applyContexts(eriaThing producer.ExposedThing, current []string, removed []string, added []string) {
 	_stateData.Contexts = current
 	saveStateData()
-
-	// Emit the change for removed contexts
-	// Excepts([]string{"a", "c"}, []string{"a", "b"},...) => []string{"c"}
 	for _, context := range removed {
 		eriaThing.EmitPropertyChange("isActive", false, map[string]interface{}{"context": context})
 	}
-	// Emit the change for added contexts
 	for _, context := range added {
 		eriaThing.EmitPropertyChange("isActive", true, map[string]interface{}{"context": context})
 	}
-
 	eriaThing.EmitPropertyChange("actives", _stateData.Contexts, map[string]interface{}{})
+}
+
+// configuredIDs lists the ids of the contexts people choose.
+func configuredIDs() []string {
+	ids := make([]string, len(config.Contexts))
+	for i, context := range config.Contexts {
+		ids[i] = context.ID
+	}
+	return ids
+}
+
+// chosenContexts lists the active contexts people choose, in display order.
+func chosenContexts() []string {
+	chosen := []string{}
+	for _, id := range configuredIDs() {
+		if slices.Contains(_stateData.Contexts, id) {
+			chosen = append(chosen, id)
+		}
+	}
+	return chosen
 }
 
 func saveStateData() {
@@ -139,6 +169,25 @@ func setThing() *thing.Thing {
 		interaction.PropertyUriVariable("context", uriContext),
 	)
 	td.AddProperty(isActiveProperty)
+
+	// Contexts people choose, with their names: a multiple choice for the UIs
+	choices := make([]dataSchema.ConstSchema, len(config.Contexts))
+	for i, context := range config.Contexts {
+		name := context.Name
+		if name == "" {
+			name = context.ID
+		}
+		choices[i] = dataSchema.ConstSchema{Const: context.ID, Title: name}
+	}
+	chosenItems, _ := dataSchema.NewString(dataSchema.StringOneOf(choices...))
+	chosenData, _ := dataSchema.NewArray(dataSchema.ArrayItems(chosenItems))
+	chosenProperty := interaction.NewProperty(
+		"chosen",
+		"Contexts",
+		"Contexts people choose that are currently active",
+		chosenData,
+	)
+	td.AddProperty(chosenProperty)
 
 	setContextInputData, _ := dataSchema.NewString()
 	setContextOutputData, _ := dataSchema.NewBoolean()
@@ -184,6 +233,26 @@ func setHandlers(eriaThing producer.ExposedThing) {
 		return emitOptions["context"] == listenerOptions["context"]
 	})
 
+	eriaThing.SetPropertyReadHandler("chosen", func(t producer.ExposedThing, name string, parameters map[string]interface{}) (interface{}, error) {
+		return chosenContexts(), nil
+	})
+
+	// go-wot emits the "chosen" change itself, after this handler
+	eriaThing.SetPropertyWriteHandler("chosen", func(t producer.ExposedThing, name string, value interface{}, parameters map[string]interface{}) error {
+		configured := configuredIDs()
+		chosen := []string{}
+		for _, v := range value.([]interface{}) {
+			id, ok := v.(string)
+			if !ok || !slices.Contains(configured, id) {
+				return fmt.Errorf("unknown context %v", v)
+			}
+			chosen = append(chosen, id)
+		}
+		current, removed, added := lib.SetChosen(_stateData.Contexts, configured, chosen)
+		applyContexts(t, current, removed, added)
+		return nil
+	})
+
 	eriaThing.SetActionHandler("setContext", func(value interface{}, parameters map[string]interface{}) (interface{}, error) {
 		context := value.(string)
 		i := slices.Index(_stateData.Contexts, context)
@@ -193,6 +262,9 @@ func setHandlers(eriaThing producer.ExposedThing) {
 			saveStateData()
 			eriaThing.EmitPropertyChange("actives", _stateData.Contexts, map[string]interface{}{"context": context})
 			eriaThing.EmitPropertyChange("isActive", true, map[string]interface{}{"context": context})
+			if slices.Contains(configuredIDs(), context) {
+				eriaThing.EmitPropertyChange("chosen", chosenContexts(), map[string]interface{}{})
+			}
 			return true, nil
 		}
 		return false, nil // Nothing was done
@@ -207,6 +279,9 @@ func setHandlers(eriaThing producer.ExposedThing) {
 			saveStateData()
 			eriaThing.EmitPropertyChange("actives", _stateData.Contexts, map[string]interface{}{"context": context})
 			eriaThing.EmitPropertyChange("isActive", false, map[string]interface{}{"context": context})
+			if slices.Contains(configuredIDs(), context) {
+				eriaThing.EmitPropertyChange("chosen", chosenContexts(), map[string]interface{}{})
+			}
 			return true, nil
 		}
 		return false, nil // Nothing was done

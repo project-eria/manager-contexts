@@ -59,3 +59,10 @@ func (ts *LibTestSuite) Test_NewWeekContexts() {
 	ts.Equal([]string{"monday", "weekday"}, added)
 	ts.Equal([]string{"sunday", "weekend"}, removed)
 }
+
+func (ts *LibTestSuite) Test_SetChosen() {
+	current, removed, added := SetChosen([]string{"monday", "away", "custom"}, []string{"away", "guests"}, []string{"guests"})
+	ts.ElementsMatch([]string{"monday", "custom", "guests"}, current)
+	ts.Equal([]string{"away"}, removed)
+	ts.Equal([]string{"guests"}, added)
+}
