@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"manager-context/lib"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
@@ -28,6 +31,9 @@ type Context struct {
 
 var config = struct {
 	Contexts []Context `yaml:"contexts,omitempty"` // contexts people choose, in display order
+	// Things channel of eria-auth (http://auth:8444): the active contexts are
+	// the states of the house that restrict the rights (AUTH-DESIGN §2.5).
+	AuthChannel string `yaml:"authChannel,omitempty"`
 }{}
 
 type StateData struct {
@@ -87,8 +93,37 @@ func main() {
 			gocron.WithStartImmediately(),
 		),
 	)
+	// Again every minute: auth converges after a restart or a restore.
+	go func() {
+		for range time.Tick(time.Minute) {
+			// ponytail: read without a lock, like the property handlers
+			publishStates(slices.Clone(_stateData.Contexts))
+		}
+	}()
 	eria.Start("")
 }
+
+// publishStates sends the active contexts to auth, which keeps the ones it
+// knows as states. ponytail: unsigned until the app keys (AUTH-DESIGN §4.7
+// step 3); a state only restricts.
+func publishStates(contexts []string) {
+	if config.AuthChannel == "" {
+		return
+	}
+	body, _ := json.Marshal(contexts)
+	req, _ := http.NewRequest(http.MethodPut, strings.TrimSuffix(config.AuthChannel, "/")+"/v1/states", bytes.NewReader(body))
+	resp, err := authClient.Do(req)
+	if err != nil {
+		zlog.Warn().Err(err).Msg("[main:publishStates] auth unreachable")
+		return
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		zlog.Warn().Int("status", resp.StatusCode).Msg("[main:publishStates] refused by auth")
+	}
+}
+
+var authClient = &http.Client{Timeout: 5 * time.Second}
 
 func setDailyContexts(eriaThing producer.ExposedThing) {
 	now := time.Now().In(eria.Location())
@@ -132,6 +167,7 @@ func chosenContexts() []string {
 }
 
 func saveStateData() {
+	go publishStates(slices.Clone(_stateData.Contexts))
 	jsonData, _ := json.Marshal(_stateData)
 	err := fsutil.WriteFile(*_dataPath, jsonData, 0644)
 	if err != nil {

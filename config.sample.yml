@@ -6,3 +6,5 @@ contexts:
     name: Absents
   - id: guests
     name: Invités
+# eria-auth Things channel: the active contexts restrict the rights (states)
+# authChannel: http://auth:8444
