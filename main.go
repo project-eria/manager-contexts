@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/gookit/goutil/fsutil"
+	"github.com/project-eria/go-wot/auth"
 	"github.com/project-eria/go-wot/thing"
 
 	eria "github.com/project-eria/eria-core"
@@ -104,13 +106,22 @@ func main() {
 }
 
 // publishStates sends the active contexts to auth, which keeps the ones it
-// knows as states. ponytail: unsigned until the app keys (AUTH-DESIGN §4.7
-// step 3); a state only restricts.
+// knows as states, signed by the app key (AUTH-DESIGN §2.5). Without a key
+// (an app the agent did not install) they go unsigned, which auth accepts
+// only until it knows manager-contexts' key.
 func publishStates(contexts []string) {
 	if config.AuthChannel == "" {
 		return
 	}
-	body, _ := json.Marshal(contexts)
+	var v any = contexts
+	if appKey != nil {
+		signed, err := auth.SignBy(appKey, auth.StatesPrefix, auth.States{States: contexts, Version: time.Now().UnixMilli()})
+		if err != nil {
+			return
+		}
+		v = signed
+	}
+	body, _ := json.Marshal(v)
 	req, _ := http.NewRequest(http.MethodPut, strings.TrimSuffix(config.AuthChannel, "/")+"/v1/states", bytes.NewReader(body))
 	resp, err := authClient.Do(req)
 	if err != nil {
@@ -124,6 +135,14 @@ func publishStates(contexts []string) {
 }
 
 var authClient = &http.Client{Timeout: 5 * time.Second}
+
+var appKey = func() ed25519.PrivateKey {
+	key, err := auth.LoadAppKey()
+	if err != nil {
+		zlog.Fatal().Err(err).Msg("[main] Can't load the app key")
+	}
+	return key
+}()
 
 func setDailyContexts(eriaThing producer.ExposedThing) {
 	now := time.Now().In(eria.Location())
