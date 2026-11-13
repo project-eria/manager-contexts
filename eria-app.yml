@@ -1,4 +1,4 @@
-# ERIA package description (orchestrator catalog, eria-manager DESIGN §12.3)
+# ERIA package description (orchestrator catalog, eria-coordinator DESIGN §12.3)
 name: manager-contexts
 title: Contextes
 description: Contextes globaux de la maison (présence, week-end, vacances...), avec état persistant
