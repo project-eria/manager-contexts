@@ -52,8 +52,8 @@ github.com/mitchellh/go-wordwrap v1.0.1 h1:TLuKupo69TCn6TQSyGxwI1EblZZEsQ0vMlAFQ
 github.com/mitchellh/go-wordwrap v1.0.1/go.mod h1:R62XHJLzvMFRBbcrT7m7WgmE1eOyTSsCt+hzestvNj0=
 github.com/molecule-man/go-brrr v1.1.1 h1:KYwusQhjtV3smALnhmafZf4OBrh7vP4p8O47DyUmmuY=
 github.com/molecule-man/go-brrr v1.1.1/go.mod h1:7ybW6/7gA3oKY45jOfVNjSJDtrr6ea4tzbsTkjmQDC4=
-github.com/project-eria/eria-core v1.23.0 h1:spTV0o+aGBeHp49YjNbwVyP9H7yRz8IiVLQ/Kcju51w=
-github.com/project-eria/eria-core v1.23.0/go.mod h1:MNRB6GoU5XJcGe7oc9AgZ/dVQ/VdPo6ltfpJuLTtBdI=
+github.com/project-eria/eria-core v1.23.1 h1:XWLmgN0PUlVAAR+C4z8QUw7mcVIozyTSuadUrRags0w=
+github.com/project-eria/eria-core v1.23.1/go.mod h1:MNRB6GoU5XJcGe7oc9AgZ/dVQ/VdPo6ltfpJuLTtBdI=
 github.com/project-eria/go-wot v1.16.0 h1:EDQ7C0weDkHVTnrz4V1DkdZI5c/sgFSrA9tiGUBCvgY=
 github.com/project-eria/go-wot v1.16.0/go.mod h1:1kEYDHwaCl339L5a5/LfKNa8vq4EKqzf4diQPZo6hes=
 github.com/robfig/cron/v3 v3.0.1 h1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=

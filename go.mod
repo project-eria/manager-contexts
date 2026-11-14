@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/go-co-op/gocron/v2 v2.22.0
 	github.com/gookit/goutil v0.8.0
-	github.com/project-eria/eria-core v1.23.0
+	github.com/project-eria/eria-core v1.23.1
 	github.com/project-eria/go-wot v1.16.0
 	github.com/rs/zerolog v1.35.1
 	github.com/stretchr/testify v1.12.1
