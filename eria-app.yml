@@ -3,7 +3,7 @@ name: manager-contexts
 title: Contextes
 description: Contextes globaux de la maison (présence, week-end, vacances...), avec état persistant
 kind: manager
-requires: [storage]
+data: snapshot
 
 exec:
   args: ["--config-path", "{config}"]
